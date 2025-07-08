@@ -390,7 +390,7 @@ paths:
                 "refresh_token": "YOUR_REFRESH_TOKEN"
               }'
 
-  /api/v1/merchants/{merchant_id}/profile:
+  /merchants/{merchant_id}/profile:
     get:
       tags:
         - Merchants
@@ -441,7 +441,7 @@ paths:
             curl -H "Authorization: Bearer YOUR_ACCESS_TOKEN" \
               http://localhost:3000/api/v1/merchants/merchant_123/profile
 
-  /api/v1/merchants:
+  /merchants:
     get:
       tags:
         - Merchants
@@ -458,7 +458,7 @@ paths:
                 items:
                   $ref: '#/components/schemas/Merchant'
 
-  /api/v1/merchants/{merchant_id}/products:
+  /merchants/{merchant_id}/products:
     get:
       tags:
         - Merchants
@@ -488,7 +488,7 @@ paths:
                   total:
                     type: integer
 
-  /api/v1/merchants/{merchant_id}/orders:
+  /merchants/{merchant_id}/orders:
     get:
       tags:
         - Merchants
@@ -518,7 +518,7 @@ paths:
                   total:
                     type: integer
 
-  /api/v1/merchants/{merchant_id}/products/{product_id}:
+  /merchants/{merchant_id}/products/{product_id}:
     get:
       tags:
         - Merchants
@@ -581,7 +581,7 @@ paths:
             curl -H "Authorization: Bearer YOUR_ACCESS_TOKEN" \
               http://localhost:3000/api/v1/merchants/merchant_123/products/product_1
 
-  /api/v1/merchants/{merchant_id}/orders/{order_id}:
+  /merchants/{merchant_id}/orders/{order_id}:
     get:
       tags:
         - Merchants
@@ -644,7 +644,7 @@ paths:
             curl -H "Authorization: Bearer YOUR_ACCESS_TOKEN" \
               http://localhost:3000/api/v1/merchants/merchant_123/orders/order_1
 
-  /api/v1/merchants/{merchant_id}/summary:
+  /merchants/{merchant_id}/summary:
     get:
       tags:
         - Merchants
