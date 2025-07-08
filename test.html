@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+    <html>
+    <head>
+      <title>BitCommerce - Authorize Application</title>
+      <style>
+        body { font-family: Arial, sans-serif; max-width: 600px; margin: 50px auto; padding: 20px; }
+        .header { background: #f8f9fa; padding: 20px; border-radius: 8px; margin-bottom: 20px; }
+        .app-info { background: #e9ecef; padding: 15px; border-radius: 5px; margin-bottom: 20px; }
+        .scopes { background: #fff3cd; padding: 15px; border-radius: 5px; margin-bottom: 20px; }
+        .buttons { display: flex; gap: 10px; }
+        .btn { padding: 10px 20px; border: none; border-radius: 5px; cursor: pointer; }
+        .btn-primary { background: #007bff; color: white; }
+        .btn-secondary { background: #6c757d; color: white; }
+        .form { display: none; }
+      </style>
+    </head>
+    <body>
+      <div class="header">
+        <h1>🔐 Authorize Application</h1>
+        <p>An application is requesting access to your BitCommerce account.</p>
+      </div>
+      
+      <div class="app-info">
+        <h3>Application Details</h3>
+        <p><strong>Name:</strong> Whatsapp Bot</p>
+        <p><strong>Client ID:</strong> client_bcztcx0ew</p>
+        <p><strong>Redirect URI:</strong> http://127.0.0.1:3000/callback</p>
+      </div>
+      
+      <div class="scopes">
+        <h3>Requested Permissions</h3>
+        <p>The application is requesting the following permissions:</p>
+        <ul>
+          <li>read_products</li><li>read_orders</li>
+        </ul>
+      </div>
+      
+      <div class="buttons">
+        <button class="btn btn-primary" onclick="authorize()">Authorize</button>
+        <button class="btn btn-secondary" onclick="deny()">Deny</button>
+      </div>
+      
+      <form id="authorizeForm" class="form" method="POST" action="/oauth/authorize">
+        <input type="hidden" name="client_id" value="client_bcztcx0ew">
+        <input type="hidden" name="redirect_uri" value="http://127.0.0.1:3000/callback">
+        <input type="hidden" name="scope" value="read_products read_orders">
+        <input type="hidden" name="state" value="demo">
+        <input type="hidden" name="response_type" value="code">
+        <input type="hidden" name="action" value="authorize">
+      </form>
+      
+      <form id="denyForm" class="form" method="POST" action="/oauth/authorize">
+        <input type="hidden" name="client_id" value="client_bcztcx0ew">
+        <input type="hidden" name="redirect_uri" value="http://127.0.0.1:3000/callback">
+        <input type="hidden" name="state" value="demo">
+        <input type="hidden" name="action" value="deny">
+      </form>
+      
+      <script>
+        function authorize() {
+          document.getElementById('authorizeForm').submit();
+        }
+        function deny() {
+          document.getElementById('denyForm').submit();
+        }
+      </script>
+    </body>
+    </html>

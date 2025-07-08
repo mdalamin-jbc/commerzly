@@ -1,0 +1,1038 @@
+openapi: 3.0.3
+info:
+  title: BitCommerce OAuth API
+  description: |
+    # BitCommerce Merchant API with OAuth 2.0 Authorization Code Flow
+    
+    This API provides secure access to merchant data through OAuth 2.0 Authorization Code Flow.
+    
+    ## OAuth Flow Overview
+    
+    1. **App Registration** - Register your application to get client credentials
+    2. **Authorization** - Redirect merchant to authorization page
+    3. **Token Exchange** - Exchange authorization code for access tokens
+    4. **API Access** - Use access token to access merchant data
+    5. **Token Refresh** - Refresh expired access tokens
+    
+    ## Quick Start
+    
+    ```bash
+    # 1. Register your application
+    curl -X POST http://localhost:3000/oauth/apps \
+      -H "Content-Type: application/json" \
+      -d '{
+        "name": "My Integration App",
+        "redirect_uri": "https://myapp.com/callback",
+        "scopes": ["read_products", "read_orders"]
+      }'
+    
+    # 2. Redirect merchant to authorization URL
+    # http://localhost:3000/oauth/authorize?client_id=YOUR_CLIENT_ID&redirect_uri=https://myapp.com/callback&scope=read_products&response_type=code
+    
+    # 3. Exchange authorization code for tokens
+    curl -X POST http://localhost:3000/oauth/token \
+      -H "Content-Type: application/json" \
+      -d '{
+        "grant_type": "authorization_code",
+        "client_id": "YOUR_CLIENT_ID",
+        "client_secret": "YOUR_CLIENT_SECRET",
+        "code": "AUTH_CODE_FROM_REDIRECT",
+        "redirect_uri": "https://myapp.com/callback"
+      }'
+    
+    # 4. Access merchant data
+    curl -H "Authorization: Bearer YOUR_ACCESS_TOKEN" \
+      http://localhost:3000/api/v1/merchants/merchant_123/products
+    ```
+    
+  version: 1.0.0
+  contact:
+    name: BitCommerce API Support
+    email: api@bitcommerce.com
+  license:
+    name: MIT
+    url: https://opensource.org/licenses/MIT
+
+servers:
+  - url: http://localhost:3000
+    description: Development server
+  - url: https://api.bitcommerce.com
+    description: Production server
+
+tags:
+  - name: OAuth
+    description: OAuth 2.0 authorization and token management
+  - name: Apps
+    description: Application registration and management
+  - name: Merchants
+    description: Merchant data access endpoints
+  - name: Health
+    description: Health check and system status
+
+paths:
+  /health:
+    get:
+      tags:
+        - Health
+      summary: Health check
+      description: Check if the API is running and healthy
+      responses:
+        '200':
+          description: API is healthy
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: "OK"
+                  timestamp:
+                    type: string
+                    format: date-time
+                    example: "2024-01-15T10:30:00.000Z"
+                  version:
+                    type: string
+                    example: "1.0.0"
+      examples:
+        curl:
+          summary: Health check
+          value: |
+            curl -X GET http://localhost:3000/health
+
+  /oauth/apps:
+    post:
+      tags:
+        - Apps
+      summary: Register OAuth application
+      description: |
+        Register a new OAuth application to get client credentials.
+        
+        This is the first step in the OAuth flow. You'll receive a `client_id` and `client_secret`
+        that you'll use for all subsequent OAuth operations.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - name
+                - redirect_uri
+                - scopes
+              properties:
+                name:
+                  type: string
+                  description: Application name
+                  example: "My Integration App"
+                redirect_uri:
+                  type: string
+                  format: uri
+                  description: OAuth redirect URI
+                  example: "https://myapp.com/callback"
+                scopes:
+                  type: array
+                  items:
+                    type: string
+                    enum: [read_products, read_orders, read_profile, write_products, write_orders]
+                  description: Requested scopes
+                  example: ["read_products", "read_orders"]
+      responses:
+        '201':
+          description: Application registered successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "Application registered successfully"
+                  app:
+                    $ref: '#/components/schemas/OAuthApp'
+        '400':
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OAuthError'
+      examples:
+        curl:
+          summary: Register application
+          value: |
+            curl -X POST http://localhost:3000/oauth/apps \
+              -H "Content-Type: application/json" \
+              -d '{
+                "name": "My Integration App",
+                "redirect_uri": "https://myapp.com/callback",
+                "scopes": ["read_products", "read_orders"]
+              }'
+    
+    get:
+      tags:
+        - Apps
+      summary: List registered applications
+      description: Get a list of all registered OAuth applications
+      responses:
+        '200':
+          description: List of applications
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  apps:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/OAuthApp'
+                  total:
+                    type: integer
+                    example: 1
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OAuthError'
+      examples:
+        curl:
+          summary: List applications
+          value: |
+            curl -X GET http://localhost:3000/oauth/apps
+
+  /oauth/authorize:
+    get:
+      tags:
+        - OAuth
+      summary: OAuth authorization endpoint
+      description: |
+        Start the OAuth authorization flow. This endpoint displays an authorization page
+        where merchants can log in and approve your application's requested permissions.
+        
+        After approval, the merchant will be redirected to your `redirect_uri` with an
+        authorization code that you can exchange for access tokens.
+      parameters:
+        - name: client_id
+          in: query
+          required: true
+          schema:
+            type: string
+          description: Your application's client ID
+          example: "client_abc123"
+        - name: redirect_uri
+          in: query
+          required: true
+          schema:
+            type: string
+            format: uri
+          description: Your application's redirect URI
+          example: "https://myapp.com/callback"
+        - name: scope
+          in: query
+          required: false
+          schema:
+            type: string
+          description: Space-separated list of requested scopes
+          example: "read_products read_orders"
+        - name: response_type
+          in: query
+          required: true
+          schema:
+            type: string
+            enum: [code]
+          description: Must be "code" for authorization code flow
+          example: "code"
+        - name: state
+          in: query
+          required: false
+          schema:
+            type: string
+          description: Random string for CSRF protection
+          example: "random_state_123"
+      responses:
+        '200':
+          description: Authorization page (HTML)
+          content:
+            text/html:
+              schema:
+                type: string
+        '400':
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OAuthError'
+      examples:
+        curl:
+          summary: Start authorization flow
+          value: |
+            curl "http://localhost:3000/oauth/authorize?client_id=YOUR_CLIENT_ID&redirect_uri=https://myapp.com/callback&scope=read_products&response_type=code&state=random_state_123"
+    
+    post:
+      tags:
+        - OAuth
+      summary: Handle authorization decision
+      description: |
+        Handle the merchant's authorization decision (approve/deny).
+        This endpoint is called by the authorization page form.
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              required:
+                - client_id
+                - redirect_uri
+                - action
+              properties:
+                client_id:
+                  type: string
+                  description: Your application's client ID
+                redirect_uri:
+                  type: string
+                  description: Your application's redirect URI
+                scope:
+                  type: string
+                  description: Requested scopes
+                state:
+                  type: string
+                  description: State parameter
+                response_type:
+                  type: string
+                  description: Response type
+                action:
+                  type: string
+                  enum: [authorize, deny]
+                  description: User's decision
+      responses:
+        '302':
+          description: Redirect to application with authorization code or error
+          headers:
+            Location:
+              description: Redirect URL with code or error parameters
+              schema:
+                type: string
+        '400':
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OAuthError'
+      examples:
+        curl:
+          summary: Handle authorization (approve)
+          value: |
+            curl -X POST http://localhost:3000/oauth/authorize \
+              -H "Content-Type: application/x-www-form-urlencoded" \
+              -d "client_id=YOUR_CLIENT_ID&redirect_uri=https://myapp.com/callback&scope=read_products&state=random_state_123&response_type=code&action=authorize"
+
+  /oauth/token:
+    post:
+      tags:
+        - OAuth
+      summary: Token endpoint
+      description: |
+        Exchange authorization code for access tokens or refresh access tokens.
+        
+        This endpoint supports two grant types:
+        - `authorization_code`: Exchange authorization code for tokens
+        - `refresh_token`: Get new access token using refresh token
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              oneOf:
+                - $ref: '#/components/schemas/AuthorizationCodeRequest'
+                - $ref: '#/components/schemas/RefreshTokenRequest'
+      responses:
+        '200':
+          description: Token response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TokenResponse'
+        '400':
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OAuthError'
+        '401':
+          description: Invalid client credentials
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OAuthError'
+      examples:
+        authorization_code:
+          summary: Exchange authorization code for tokens
+          value: |
+            curl -X POST http://localhost:3000/oauth/token \
+              -H "Content-Type: application/json" \
+              -d '{
+                "grant_type": "authorization_code",
+                "client_id": "YOUR_CLIENT_ID",
+                "client_secret": "YOUR_CLIENT_SECRET",
+                "code": "AUTH_CODE_FROM_REDIRECT",
+                "redirect_uri": "https://myapp.com/callback"
+              }'
+        refresh_token:
+          summary: Refresh access token
+          value: |
+            curl -X POST http://localhost:3000/oauth/token \
+              -H "Content-Type: application/json" \
+              -d '{
+                "grant_type": "refresh_token",
+                "client_id": "YOUR_CLIENT_ID",
+                "client_secret": "YOUR_CLIENT_SECRET",
+                "refresh_token": "YOUR_REFRESH_TOKEN"
+              }'
+
+  /api/v1/merchants/{merchant_id}/profile:
+    get:
+      tags:
+        - Merchants
+      summary: Get merchant profile
+      description: |
+        Get merchant profile information.
+        
+        **Required Scope:** `read_profile`
+      parameters:
+        - name: merchant_id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Merchant ID
+          example: "merchant_123"
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Merchant profile
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MerchantProfile'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OAuthError'
+        '403':
+          description: Forbidden (insufficient scope or merchant access)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OAuthError'
+        '404':
+          description: Merchant not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OAuthError'
+      examples:
+        curl:
+          summary: Get merchant profile
+          value: |
+            curl -H "Authorization: Bearer YOUR_ACCESS_TOKEN" \
+              http://localhost:3000/api/v1/merchants/merchant_123/profile
+
+  /api/v1/merchants:
+    get:
+      tags:
+        - Merchants
+      summary: List all merchants
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: A list of merchants
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Merchant'
+
+  /api/v1/merchants/{merchant_id}/products:
+    get:
+      tags:
+        - Merchants
+      summary: List products for a merchant
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: merchant_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: A list of products
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  merchant:
+                    $ref: '#/components/schemas/Merchant'
+                  products:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Product'
+                  total:
+                    type: integer
+
+  /api/v1/merchants/{merchant_id}/orders:
+    get:
+      tags:
+        - Merchants
+      summary: List orders for a merchant
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: merchant_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: A list of orders
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  merchant:
+                    $ref: '#/components/schemas/Merchant'
+                  orders:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Order'
+                  total:
+                    type: integer
+
+  /api/v1/merchants/{merchant_id}/products/{product_id}:
+    get:
+      tags:
+        - Merchants
+      summary: Get specific product
+      description: |
+        Get a specific product by ID.
+        
+        **Required Scope:** `read_products`
+      parameters:
+        - name: merchant_id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Merchant ID
+          example: "merchant_123"
+        - name: product_id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Product ID
+          example: "product_1"
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Product details
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  merchant:
+                    $ref: '#/components/schemas/MerchantSummary'
+                  product:
+                    $ref: '#/components/schemas/Product'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OAuthError'
+        '403':
+          description: Forbidden (insufficient scope or merchant access)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OAuthError'
+        '404':
+          description: Merchant or product not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OAuthError'
+      examples:
+        curl:
+          summary: Get specific product
+          value: |
+            curl -H "Authorization: Bearer YOUR_ACCESS_TOKEN" \
+              http://localhost:3000/api/v1/merchants/merchant_123/products/product_1
+
+  /api/v1/merchants/{merchant_id}/orders/{order_id}:
+    get:
+      tags:
+        - Merchants
+      summary: Get specific order
+      description: |
+        Get a specific order by ID.
+        
+        **Required Scope:** `read_orders`
+      parameters:
+        - name: merchant_id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Merchant ID
+          example: "merchant_123"
+        - name: order_id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Order ID
+          example: "order_1"
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Order details
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  merchant:
+                    $ref: '#/components/schemas/MerchantSummary'
+                  order:
+                    $ref: '#/components/schemas/Order'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OAuthError'
+        '403':
+          description: Forbidden (insufficient scope or merchant access)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OAuthError'
+        '404':
+          description: Merchant or order not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OAuthError'
+      examples:
+        curl:
+          summary: Get specific order
+          value: |
+            curl -H "Authorization: Bearer YOUR_ACCESS_TOKEN" \
+              http://localhost:3000/api/v1/merchants/merchant_123/orders/order_1
+
+  /api/v1/merchants/{merchant_id}/summary:
+    get:
+      tags:
+        - Merchants
+      summary: Get merchant summary
+      description: |
+        Get a summary of merchant data including product and order statistics.
+        
+        **Required Scope:** `read_products` OR `read_orders`
+      parameters:
+        - name: merchant_id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Merchant ID
+          example: "merchant_123"
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Merchant summary
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MerchantSummary'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OAuthError'
+        '403':
+          description: Forbidden (insufficient scope or merchant access)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OAuthError'
+        '404':
+          description: Merchant not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OAuthError'
+      examples:
+        curl:
+          summary: Get merchant summary
+          value: |
+            curl -H "Authorization: Bearer YOUR_ACCESS_TOKEN" \
+              http://localhost:3000/api/v1/merchants/merchant_123/summary
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: |
+        Include your access token in the Authorization header.
+        
+        Example: `Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...`
+
+  schemas:
+    OAuthApp:
+      type: object
+      properties:
+        app_id:
+          type: string
+          example: "app_1234567890"
+        client_id:
+          type: string
+          example: "client_abc123"
+        client_secret:
+          type: string
+          example: "secret_xyz789"
+        name:
+          type: string
+          example: "My Integration App"
+        redirect_uri:
+          type: string
+          format: uri
+          example: "https://myapp.com/callback"
+        scopes:
+          type: array
+          items:
+            type: string
+          example: ["read_products", "read_orders"]
+        status:
+          type: string
+          enum: [active, inactive]
+          example: "active"
+        created_at:
+          type: string
+          format: date-time
+          example: "2024-01-15T10:30:00.000Z"
+
+    AuthorizationCodeRequest:
+      type: object
+      required:
+        - grant_type
+        - client_id
+        - client_secret
+        - code
+        - redirect_uri
+      properties:
+        grant_type:
+          type: string
+          enum: [authorization_code]
+          example: "authorization_code"
+        client_id:
+          type: string
+          example: "client_abc123"
+        client_secret:
+          type: string
+          example: "secret_xyz789"
+        code:
+          type: string
+          example: "auth_code_123"
+        redirect_uri:
+          type: string
+          format: uri
+          example: "https://myapp.com/callback"
+
+    RefreshTokenRequest:
+      type: object
+      required:
+        - grant_type
+        - client_id
+        - client_secret
+        - refresh_token
+      properties:
+        grant_type:
+          type: string
+          enum: [refresh_token]
+          example: "refresh_token"
+        client_id:
+          type: string
+          example: "client_abc123"
+        client_secret:
+          type: string
+          example: "secret_xyz789"
+        refresh_token:
+          type: string
+          example: "refresh_token_456"
+
+    TokenResponse:
+      type: object
+      properties:
+        access_token:
+          type: string
+          example: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJtZXJjaGFudF9pZCI6Im1lcmNoYW50XzEyMyIsImFwcF9pZCI6ImFwcF8xMjMiLCJzY29wZXMiOlsicmVhZF9wcm9kdWN0cyIsInJlYWRfb3JkZXJzIl0sImNsaWVudF9pZCI6ImNsaWVudF9hYmMxMjMiLCJpYXQiOjE3MDUzMjQ2MDAsImV4cCI6MTcwNTMyODIwMCwiaXNzIjoiYml0Y29tbWVyY2Utb2F1dGgtYXBpIiwiYXVkIjoibWVyY2hhbnQtYXBwcyJ9.signature"
+        token_type:
+          type: string
+          example: "Bearer"
+        expires_in:
+          type: integer
+          example: 3600
+        refresh_token:
+          type: string
+          example: "refresh_token_456"
+        scope:
+          type: string
+          example: "read_products read_orders"
+
+    OAuthError:
+      type: object
+      properties:
+        error:
+          type: string
+          enum: [invalid_request, invalid_client, invalid_grant, access_denied, invalid_token, insufficient_scope, not_found, server_error]
+          example: "invalid_request"
+        error_description:
+          type: string
+          example: "Missing required parameter: client_id"
+
+    MerchantProfile:
+      type: object
+      properties:
+        id:
+          type: string
+          example: "merchant_123"
+        name:
+          type: string
+          example: "Sample Store"
+        email:
+          type: string
+          format: email
+          example: "merchant@samplestore.com"
+        status:
+          type: string
+          enum: [active, inactive, suspended]
+          example: "active"
+        created_at:
+          type: string
+          format: date-time
+          example: "2024-01-01T00:00:00.000Z"
+        updated_at:
+          type: string
+          format: date-time
+          example: "2024-01-15T10:30:00.000Z"
+
+    MerchantSummary:
+      type: object
+      properties:
+        id:
+          type: string
+          example: "merchant_123"
+        name:
+          type: string
+          example: "Sample Store"
+        status:
+          type: string
+          enum: [active, inactive, suspended]
+          example: "active"
+
+    Product:
+      type: object
+      properties:
+        id:
+          type: string
+          example: "product_1"
+        merchant_id:
+          type: string
+          example: "merchant_123"
+        name:
+          type: string
+          example: "Sample Product 1"
+        price:
+          type: number
+          format: float
+          example: 29.99
+        description:
+          type: string
+          example: "A sample product for testing"
+        status:
+          type: string
+          enum: [active, inactive, draft]
+          example: "active"
+        created_at:
+          type: string
+          format: date-time
+          example: "2024-01-01T00:00:00.000Z"
+
+    Order:
+      type: object
+      properties:
+        id:
+          type: string
+          example: "order_1"
+        merchant_id:
+          type: string
+          example: "merchant_123"
+        customer_email:
+          type: string
+          format: email
+          example: "customer@example.com"
+        total:
+          type: number
+          format: float
+          example: 79.98
+        status:
+          type: string
+          enum: [pending, processing, completed, cancelled]
+          example: "completed"
+        items:
+          type: array
+          items:
+            type: object
+            properties:
+              product_id:
+                type: string
+                example: "product_1"
+              quantity:
+                type: integer
+                example: 1
+              price:
+                type: number
+                format: float
+                example: 29.99
+        created_at:
+          type: string
+          format: date-time
+          example: "2024-01-15T10:30:00.000Z"
+
+    Merchant:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        email:
+          type: string
+        status:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+
+# Complete OAuth Flow Example
+x-oauth-flow-example: |
+  # Complete OAuth 2.0 Flow Example
+  
+  ## Step 1: Register Application
+  curl -X POST http://localhost:3000/oauth/apps \
+    -H "Content-Type: application/json" \
+    -d '{
+      "name": "My Integration App",
+      "redirect_uri": "https://myapp.com/callback",
+      "scopes": ["read_products", "read_orders"]
+    }'
+  
+  # Response:
+  # {
+  #   "message": "Application registered successfully",
+  #   "app": {
+  #     "app_id": "app_1234567890",
+  #     "client_id": "client_abc123",
+  #     "client_secret": "secret_xyz789",
+  #     "name": "My Integration App",
+  #     "redirect_uri": "https://myapp.com/callback",
+  #     "scopes": ["read_products", "read_orders"],
+  #     "created_at": "2024-01-15T10:30:00.000Z"
+  #   }
+  # }
+  
+  ## Step 2: Start Authorization Flow
+  # Open this URL in a browser:
+  # http://localhost:3000/oauth/authorize?client_id=client_abc123&redirect_uri=https://myapp.com/callback&scope=read_products&response_type=code&state=random_state_123
+  
+  # After user approves, you'll be redirected to:
+  # https://myapp.com/callback?code=auth_code_123&state=random_state_123
+  
+  ## Step 3: Exchange Code for Tokens
+  curl -X POST http://localhost:3000/oauth/token \
+    -H "Content-Type: application/json" \
+    -d '{
+      "grant_type": "authorization_code",
+      "client_id": "client_abc123",
+      "client_secret": "secret_xyz789",
+      "code": "auth_code_123",
+      "redirect_uri": "https://myapp.com/callback"
+    }'
+  
+  # Response:
+  # {
+  #   "access_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+  #   "token_type": "Bearer",
+  #   "expires_in": 3600,
+  #   "refresh_token": "refresh_token_456",
+  #   "scope": "read_products read_orders"
+  # }
+  
+  ## Step 4: Access Merchant Data
+  curl -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..." \
+    http://localhost:3000/api/v1/merchants/merchant_123/products
+  
+  # Response:
+  # {
+  #   "merchant": {
+  #     "id": "merchant_123",
+  #     "name": "Sample Store"
+  #   },
+  #   "products": [
+  #     {
+  #       "id": "product_1",
+  #       "name": "Sample Product 1",
+  #       "price": 29.99,
+  #       "description": "A sample product for testing",
+  #       "status": "active"
+  #     }
+  #   ],
+  #   "total": 1
+  # }
+  
+  ## Step 5: Refresh Token (when access token expires)
+  curl -X POST http://localhost:3000/oauth/token \
+    -H "Content-Type: application/json" \
+    -d '{
+      "grant_type": "refresh_token",
+      "client_id": "client_abc123",
+      "client_secret": "secret_xyz789",
+      "refresh_token": "refresh_token_456"
+    }'
+  
+  # Response:
+  # {
+  #   "access_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+  #   "token_type": "Bearer",
+  #   "expires_in": 3600,
+  #   "scope": "read_products read_orders"
+  # } 
