@@ -76,6 +76,7 @@ try {
 
 // API routes
 app.use('/oauth', oauthRoutes);
+app.use('/api/v1/oauth', oauthRoutes);
 app.use('/api/v1/merchants', merchantRoutes);
 
 // 404 handler
