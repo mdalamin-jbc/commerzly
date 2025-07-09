@@ -262,7 +262,8 @@ router.post('/token', [
         token_type: 'Bearer',
         expires_in: 3600, // 1 hour
         refresh_token: refreshToken,
-        scope: authCodeData.scope
+        scope: authCodeData.scope,
+        merchant_id: authCodeData.merchant_id
       });
 
     } else if (grant_type === 'refresh_token') {
@@ -312,7 +313,8 @@ router.post('/token', [
         access_token: newAccessToken,
         token_type: 'Bearer',
         expires_in: 3600, // 1 hour
-        scope: 'read_products read_orders'
+        scope: 'read_products read_orders',
+        merchant_id: refreshTokenData.merchant_id
       });
     }
   } catch (error) {
